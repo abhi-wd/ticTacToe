@@ -68,6 +68,98 @@ let rpcJoinRoom: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
   return JSON.stringify({ matchId: records[0].value.matchId });
 };
 
+/**
+ * rpc_update_username: Synchronises the client's display name with their Nakama account
+ * and ensures their existing leaderboard entry (if any) is updated with the new name.
+ */
+let rpcUpdateUsername: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
+  let parsed: { username?: string } = {};
+  try {
+    parsed = JSON.parse(payload);
+  } catch (e) {
+    logger.error('Payload parse failed');
+    throw new Error('Invalid payload');
+  }
+
+  if (!parsed.username) {
+    return JSON.stringify({ success: false, error: 'No username provided' });
+  }
+
+  try {
+    const userId = ctx.userId;
+    if (!userId) {
+      throw new Error('User ID not found in context');
+    }
+    const username = parsed.username as string;
+
+    // 1. Update the user account username
+    nk.accountUpdateId(userId, username);
+    logger.info(`Updated username for user ${userId} to ${username}`);
+
+    // 2. Refresh the leaderboard record if it exists to show the new name immediately
+    const records = nk.leaderboardRecordsList(LEADERBOARD_ID, [userId], 1);
+    if (records.records && records.records.length > 0) {
+      const r = records.records[0];
+      nk.leaderboardRecordWrite(
+        LEADERBOARD_ID,
+        userId,
+        username,
+        r.score,
+        r.subscore,
+        r.metadata,
+        nkruntime.OverrideOperator.SET
+      );
+      logger.info(`Synced leaderboard name for ${userId}`);
+    }
+  } catch (e) {
+    logger.error(`Failed to update username: ${e}`);
+    return JSON.stringify({ success: false, error: String(e) });
+  }
+
+  return JSON.stringify({ success: true });
+};
+
+/**
+ * rpc_migrate_leaderboard: One-time migration to fix existing UUID usernames 
+ * for the top 100 players currently on the leaderboard.
+ */
+let rpcMigrateLeaderboard: nkruntime.RpcFunction = function (ctx, logger, nk, payload) {
+  try {
+    const records = nk.leaderboardRecordsList(LEADERBOARD_ID, undefined, 100);
+    if (!records.records || records.records.length === 0) {
+      return JSON.stringify({ success: true, message: 'No records to migrate' });
+    }
+
+    const playerIds = records.records.map(r => r.ownerId);
+    const users = nk.usersGetId(playerIds);
+    const usersMap: { [id: string]: string } = {};
+    users.forEach(u => { usersMap[u.userId] = u.username; });
+
+    let count = 0;
+    records.records.forEach(r => {
+      const realUsername = usersMap[r.ownerId];
+      if (realUsername && realUsername !== r.username) {
+        nk.leaderboardRecordWrite(
+          LEADERBOARD_ID,
+          r.ownerId,
+          realUsername,
+          r.score,
+          r.subscore,
+          r.metadata,
+          nkruntime.OverrideOperator.SET
+        );
+        count++;
+      }
+    });
+
+    logger.info(`Migration complete: ${count} records updated.`);
+    return JSON.stringify({ success: true, updated: count });
+  } catch (e) {
+    logger.error(`Migration failed: ${e}`);
+    return JSON.stringify({ success: false, error: String(e) });
+  }
+};
+
 let InitModule: nkruntime.InitModule = function(
   ctx: nkruntime.Context,
   logger: nkruntime.Logger,
@@ -90,6 +182,8 @@ let InitModule: nkruntime.InitModule = function(
   // Register Custom RPCs
   initializer.registerRpc("rpc_create_room", rpcCreateRoom);
   initializer.registerRpc("rpc_join_room", rpcJoinRoom);
+  initializer.registerRpc("rpc_update_username", rpcUpdateUsername);
+  initializer.registerRpc("rpc_migrate_leaderboard", rpcMigrateLeaderboard);
 
   // Create the leaderboard (idempotent — safe to call on every startup)
   try {

@@ -24,6 +24,14 @@ function updateStats(
   try {
     if (playerIds.length === 0) return;
 
+    let usersMap: { [userId: string]: string } = {};
+    try {
+      const users = nk.usersGetId(playerIds);
+      users.forEach(u => { usersMap[u.userId] = u.username; });
+    } catch (e) {
+      logger.warn(`Failed to fetch users for stats: ${e}`);
+    }
+
     const readReqs = playerIds.map((userId) => ({
       collection: "stats",
       key: "tictactoe",
@@ -62,10 +70,11 @@ function updateStats(
       });
 
       try {
+        const username = usersMap[userId] || userId;
         nk.leaderboardRecordWrite(
           LEADERBOARD_ID,
           userId,
-          userId,
+          username,
           stats.wins,
           0,
           { losses: stats.losses, streak: stats.streak },

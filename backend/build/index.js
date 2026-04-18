@@ -51,6 +51,14 @@ function updateStats(nk, logger, playerIds, winner) {
     try {
         if (playerIds.length === 0)
             return;
+        var usersMap_1 = {};
+        try {
+            var users = nk.usersGetId(playerIds);
+            users.forEach(function (u) { usersMap_1[u.userId] = u.username; });
+        }
+        catch (e) {
+            logger.warn("Failed to fetch users for stats: ".concat(e));
+        }
         var readReqs = playerIds.map(function (userId) { return ({
             collection: "stats",
             key: "tictactoe",
@@ -86,7 +94,8 @@ function updateStats(nk, logger, playerIds, winner) {
                 permissionWrite: 0,
             });
             try {
-                nk.leaderboardRecordWrite(LEADERBOARD_ID, userId, userId, stats.wins, 0, { losses: stats.losses, streak: stats.streak }, "set" /* nkruntime.OverrideOperator.SET */);
+                var username = usersMap_1[userId] || userId;
+                nk.leaderboardRecordWrite(LEADERBOARD_ID, userId, username, stats.wins, 0, { losses: stats.losses, streak: stats.streak }, "set" /* nkruntime.OverrideOperator.SET */);
             }
             catch (e) {
                 logger.warn("Stats leaderboard write failed: ".concat(e));
@@ -402,6 +411,75 @@ var rpcJoinRoom = function (ctx, logger, nk, payload) {
     }
     return JSON.stringify({ matchId: records[0].value.matchId });
 };
+/**
+ * rpc_update_username: Synchronises the client's display name with their Nakama account
+ * and ensures their existing leaderboard entry (if any) is updated with the new name.
+ */
+var rpcUpdateUsername = function (ctx, logger, nk, payload) {
+    var parsed = {};
+    try {
+        parsed = JSON.parse(payload);
+    }
+    catch (e) {
+        logger.error('Payload parse failed');
+        throw new Error('Invalid payload');
+    }
+    if (!parsed.username) {
+        return JSON.stringify({ success: false, error: 'No username provided' });
+    }
+    try {
+        var userId = ctx.userId;
+        if (!userId) {
+            throw new Error('User ID not found in context');
+        }
+        var username = parsed.username;
+        // 1. Update the user account username
+        nk.accountUpdateId(userId, username);
+        logger.info("Updated username for user ".concat(userId, " to ").concat(username));
+        // 2. Refresh the leaderboard record if it exists to show the new name immediately
+        var records = nk.leaderboardRecordsList(LEADERBOARD_ID, [userId], 1);
+        if (records.records && records.records.length > 0) {
+            var r = records.records[0];
+            nk.leaderboardRecordWrite(LEADERBOARD_ID, userId, username, r.score, r.subscore, r.metadata, "set" /* nkruntime.OverrideOperator.SET */);
+            logger.info("Synced leaderboard name for ".concat(userId));
+        }
+    }
+    catch (e) {
+        logger.error("Failed to update username: ".concat(e));
+        return JSON.stringify({ success: false, error: String(e) });
+    }
+    return JSON.stringify({ success: true });
+};
+/**
+ * rpc_migrate_leaderboard: One-time migration to fix existing UUID usernames
+ * for the top 100 players currently on the leaderboard.
+ */
+var rpcMigrateLeaderboard = function (ctx, logger, nk, payload) {
+    try {
+        var records = nk.leaderboardRecordsList(LEADERBOARD_ID, undefined, 100);
+        if (!records.records || records.records.length === 0) {
+            return JSON.stringify({ success: true, message: 'No records to migrate' });
+        }
+        var playerIds = records.records.map(function (r) { return r.ownerId; });
+        var users = nk.usersGetId(playerIds);
+        var usersMap_2 = {};
+        users.forEach(function (u) { usersMap_2[u.userId] = u.username; });
+        var count_1 = 0;
+        records.records.forEach(function (r) {
+            var realUsername = usersMap_2[r.ownerId];
+            if (realUsername && realUsername !== r.username) {
+                nk.leaderboardRecordWrite(LEADERBOARD_ID, r.ownerId, realUsername, r.score, r.subscore, r.metadata, "set" /* nkruntime.OverrideOperator.SET */);
+                count_1++;
+            }
+        });
+        logger.info("Migration complete: ".concat(count_1, " records updated."));
+        return JSON.stringify({ success: true, updated: count_1 });
+    }
+    catch (e) {
+        logger.error("Migration failed: ".concat(e));
+        return JSON.stringify({ success: false, error: String(e) });
+    }
+};
 var InitModule = function (ctx, logger, nk, initializer) {
     logger.info("Initialising TicTacToe server module");
     // Register the match handler
@@ -417,6 +495,8 @@ var InitModule = function (ctx, logger, nk, initializer) {
     // Register Custom RPCs
     initializer.registerRpc("rpc_create_room", rpcCreateRoom);
     initializer.registerRpc("rpc_join_room", rpcJoinRoom);
+    initializer.registerRpc("rpc_update_username", rpcUpdateUsername);
+    initializer.registerRpc("rpc_migrate_leaderboard", rpcMigrateLeaderboard);
     // Create the leaderboard (idempotent — safe to call on every startup)
     try {
         nk.leaderboardCreate(LEADERBOARD_ID, false, // not authoritative (client can read)

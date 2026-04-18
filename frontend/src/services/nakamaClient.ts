@@ -17,6 +17,13 @@ export async function login(displayName: string): Promise<void> {
   const session = await client.authenticateDevice(deviceId, true, displayName || 'Player')
   const socket  = await connectSocket(session)
   useGameStore.getState().setAuth(session, socket)
+
+  // Sync display name to account and leaderboard
+  try {
+    await client.rpc(session, 'rpc_update_username', { username: displayName || 'Player' })
+  } catch (e) {
+    console.error('Failed to sync username:', e)
+  }
 }
 
 /** Adds player to Nakama matchmaker queue, stores ticket. */

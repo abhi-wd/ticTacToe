@@ -25,10 +25,14 @@ export default function HomeScreen() {
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
+    if (!name.trim()) {
+      setError('Please enter a name')
+      return
+    }
     setLoading(true)
     setError('')
     try {
-      await login(name)
+      await login(name.trim())
       const records = await fetchLeaderboard()
       setRecords(records)
     } catch {
