@@ -437,11 +437,16 @@ var rpcUpdateUsername = function (ctx, logger, nk, payload) {
         nk.accountUpdateId(userId, username);
         logger.info("Updated username for user ".concat(userId, " to ").concat(username));
         // 2. Refresh the leaderboard record if it exists to show the new name immediately
+        // Note: We MUST verify the record belongs to the current user. In some cases,
+        // listLeaderboardRecords might return the global top record if the user isn't found.
         var records = nk.leaderboardRecordsList(LEADERBOARD_ID, [userId], 1);
         if (records.records && records.records.length > 0) {
             var r = records.records[0];
-            nk.leaderboardRecordWrite(LEADERBOARD_ID, userId, username, r.score, r.subscore, r.metadata, "set" /* nkruntime.OverrideOperator.SET */);
-            logger.info("Synced leaderboard name for ".concat(userId));
+            // Defensive check: Ensure we only update the record that actually belongs to this user
+            if (r.ownerId === userId) {
+                nk.leaderboardRecordWrite(LEADERBOARD_ID, userId, username, r.score, r.subscore, r.metadata, "set" /* nkruntime.OverrideOperator.SET */);
+                logger.info("Synced leaderboard name for ".concat(userId));
+            }
         }
     }
     catch (e) {
@@ -501,7 +506,7 @@ var InitModule = function (ctx, logger, nk, initializer) {
     try {
         nk.leaderboardCreate(LEADERBOARD_ID, false, // not authoritative (client can read)
         "descending" /* nkruntime.SortOrder.DESCENDING */, // sort order: highest wins first
-        "increment" /* nkruntime.Operator.INCREMENTAL */, // operator: increment wins
+        "set" /* nkruntime.Operator.SET */, // operator: set wins (most predictable for this setup)
         undefined, // reset schedule (daily: "0 0 * * *")
         {} // metadata
         );
