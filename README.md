@@ -73,6 +73,8 @@ To host Nakama yourself, spinning up a basic Linux Droplet is the most flexible 
      ```bash
      git clone https://github.com/YOUR_USERNAME/TicTacToe.git /opt/tictactoe
      cd /opt/tictactoe/backend
+
+     git clone https://github.com/abhi-wd/ticTacToe.git /opt/tictactoe
      ```
 
 3. **Install Dependencies & Build**
