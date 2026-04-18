@@ -1,0 +1,15 @@
+{
+  "name": "tictactoe-backend",
+  "version": "1.0.0",
+  "description": "Nakama server-side TypeScript modules for Tic-Tac-Toe",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch"
+  },
+  "dependencies": {
+    "nakama-runtime": "github:heroiclabs/nakama-common#master"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

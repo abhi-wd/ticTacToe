@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, sans-serif;
+
+  /* Brand palette */
+  --color-bg:         #07071a;
+  --color-surface:    #0f0f28;
+  --color-surface-2:  #16163a;
+  --color-border:     #2a2a5a;
+  --color-border-br:  #4a3f9a;
+  --color-accent:     #7c5cfc;
+  --color-accent-h:   #9d7fff;
+  --color-x:          #ff6b9d;
+  --color-o:          #4dd9e0;
+  --color-success:    #4ade80;
+  --color-danger:     #ff5c7a;
+  --color-text:       #f0f0ff;
+  --color-muted:      #9090c0;
+  --color-subtle:     #55557a;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-sans);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+/* Smooth everything */
+* { transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+
+@keyframes pop-in {
+  0%   { transform: scale(0.1); opacity: 0; }
+  70%  { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1);   opacity: 1; }
+}
+.animate-pop-in { animation: pop-in 220ms forwards; }
+
+@keyframes slide-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.animate-slide-up { animation: slide-up 300ms forwards; }
+
+@keyframes spin-arc {
+  to { transform: rotate(360deg); }
+}
+.animate-spin-arc { animation: spin-arc 0.9s linear infinite; }
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(124,92,252,0); }
+  50%       { box-shadow: 0 0 0 6px rgba(124,92,252,0.35); }
+}
+.animate-glow-pulse { animation: glow-pulse 1.4s ease-in-out infinite; }
