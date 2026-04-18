@@ -3,7 +3,7 @@ import type { Socket } from "@heroiclabs/nakama-js";
 
 const HOST = import.meta.env.VITE_NAKAMA_HOST || "localhost";
 const PORT = Number(import.meta.env.VITE_NAKAMA_PORT) || 7350;
-const USE_SSL = import.meta.env.VITE_NAKAMA_USE_SSL === "false";
+const USE_SSL = import.meta.env.VITE_NAKAMA_USE_SSL === "true";
 const SERVER_KEY = import.meta.env.VITE_NAKAMA_SERVER_KEY || "defaultkey";
 
 export const client = new Client(SERVER_KEY, HOST, PORT.toString(), USE_SSL);
